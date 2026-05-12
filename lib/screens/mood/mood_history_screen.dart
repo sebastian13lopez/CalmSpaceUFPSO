@@ -8,15 +8,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class MoodData {
   static const moods = [
     _Mood(0, Icons.sentiment_very_dissatisfied_rounded,
-        Color(0xFFEF4444), Color(0xFFFF8A80), 'Muy mal'),
+        Color(0xFFEF4444), Color(0xFFFF8A80), 'Mal'),
     _Mood(1, Icons.sentiment_dissatisfied_rounded,
-        Color(0xFFF97316), Color(0xFFFFAB40), 'Mal'),
+        Color(0xFFF97316), Color(0xFFFFAB40), 'No muy bien'),
     _Mood(2, Icons.sentiment_neutral_rounded,
-        Color(0xFFF59E0B), Color(0xFFFFD740), 'Regular'),
+        Color(0xFFF59E0B), Color(0xFFFFD740), 'Más o menos'),
     _Mood(3, Icons.sentiment_satisfied_rounded,
         Color(0xFF84CC16), Color(0xFFCCFF90), 'Bien'),
     _Mood(4, Icons.sentiment_very_satisfied_rounded,
-        Color(0xFF22C55E), Color(0xFF69F0AE), 'Muy bien'),
+        Color(0xFF22C55E), Color(0xFF69F0AE), 'Genial'),
   ];
 
   static String todayKey() {

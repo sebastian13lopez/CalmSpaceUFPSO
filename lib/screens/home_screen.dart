@@ -265,34 +265,45 @@ class _HomeTab extends StatelessWidget {
           ]),
           const SizedBox(height: 14),
 
-          // Emojis de ánimo — coloridos
+          // Íconos de ánimo — coloridos con etiqueta
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(moods.length, (i) {
               final m = moods[i];
               final sel = moodIndex == i;
               return GestureDetector(
                 onTap: () => onMoodTap(i),
-                child: Tooltip(message: m.label,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 58, height: 58,
-                    decoration: BoxDecoration(
-                      gradient: sel ? LinearGradient(
-                        colors: [m.light, m.color],
-                        begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
-                      color: sel ? null : Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: sel ? m.color : Colors.grey.shade200, width: 2),
-                      boxShadow: [BoxShadow(
-                        color: sel ? m.color.withOpacity(0.4) : Colors.black.withOpacity(0.06),
-                        blurRadius: sel ? 12 : 8,
-                        offset: const Offset(0, 3))],
+                child: SizedBox(
+                  width: 58,
+                  child: Column(children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: 54, height: 54,
+                      decoration: BoxDecoration(
+                        gradient: sel ? LinearGradient(
+                          colors: [m.light, m.color],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
+                        color: sel ? null : Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: sel ? m.color : Colors.grey.shade200, width: 2),
+                        boxShadow: [BoxShadow(
+                          color: sel ? m.color.withOpacity(0.45) : Colors.black.withOpacity(0.06),
+                          blurRadius: sel ? 14 : 8,
+                          offset: const Offset(0, 3))],
+                      ),
+                      child: Icon(m.icon,
+                        color: sel ? Colors.white : Colors.grey.shade400,
+                        size: sel ? 30 : 26),
                     ),
-                    child: Icon(m.icon,
-                      color: sel ? Colors.white : Colors.grey.shade400,
-                      size: sel ? 30 : 26),
-                  ),
+                    const SizedBox(height: 6),
+                    Text(m.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
+                        color: sel ? m.color : Colors.grey.shade400),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ]),
                 ),
               );
             }),
@@ -300,46 +311,114 @@ class _HomeTab extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Botón confirmar estado
-          if (moodIndex != null)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+          // Botón confirmar estado — rediseñado
+          if (moodIndex != null) ...[const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim,
+                    child: SlideTransition(
+                      position: Tween(begin: const Offset(0, 0.15), end: Offset.zero)
+                          .animate(anim), child: child)),
               child: moodSaved
+                  // ── ESTADO YA CONFIRMADO ──
                   ? Container(
+                      key: const ValueKey('saved'),
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: MoodData.moods[moodIndex!].color.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(
+                          colors: [
+                            MoodData.moods[moodIndex!].light.withOpacity(0.5),
+                            MoodData.moods[moodIndex!].color.withOpacity(0.15)],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                            color: MoodData.moods[moodIndex!].color.withOpacity(0.3))),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            color: MoodData.moods[moodIndex!].color.withOpacity(0.4),
+                            width: 1.5)),
+                      child: Row(children: [
+                        Container(
+                          width: 48, height: 48,
+                          decoration: BoxDecoration(
+                            color: MoodData.moods[moodIndex!].color.withOpacity(0.15),
+                            shape: BoxShape.circle),
+                          child: Icon(MoodData.moods[moodIndex!].icon,
+                              color: MoodData.moods[moodIndex!].color, size: 26)),
+                        const SizedBox(width: 14),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Tu estado de hoy',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF8A94A6))),
+                            const SizedBox(height: 2),
+                            Text(MoodData.moods[moodIndex!].label,
+                              style: TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.bold,
+                                color: MoodData.moods[moodIndex!].color)),
+                          ],
+                        )),
                         Icon(Icons.check_circle_rounded,
-                            color: MoodData.moods[moodIndex!].color, size: 18),
-                        const SizedBox(width: 8),
-                        Text('Estado de hoy: ${MoodData.moods[moodIndex!].label}',
-                            style: TextStyle(
-                              color: MoodData.moods[moodIndex!].color,
-                              fontWeight: FontWeight.w600, fontSize: 13)),
+                            color: MoodData.moods[moodIndex!].color, size: 22),
                       ]),
                     )
-                  : SizedBox(width: double.infinity, height: 46,
-                      child: ElevatedButton.icon(
-                        onPressed: savingMood ? null : onConfirmMood,
-                        icon: savingMood
-                            ? const SizedBox(width: 16, height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : Icon(MoodData.moods[moodIndex!].icon, size: 18),
-                        label: Text(savingMood ? 'Guardando...' : 'Confirmar estado de hoy'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: MoodData.moods[moodIndex!].color,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14))),
+                  // ── BOTÓN CONFIRMAR ──
+                  : GestureDetector(
+                      key: const ValueKey('confirm'),
+                      onTap: savingMood ? null : onConfirmMood,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              MoodData.moods[moodIndex!].color,
+                              MoodData.moods[moodIndex!].color.withOpacity(0.7)],
+                            begin: Alignment.topLeft, end: Alignment.bottomRight),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [BoxShadow(
+                            color: MoodData.moods[moodIndex!].color.withOpacity(0.4),
+                            blurRadius: 16, offset: const Offset(0, 6))]),
+                        child: Row(children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.25),
+                              shape: BoxShape.circle),
+                            child: savingMood
+                                ? const Padding(
+                                    padding: EdgeInsets.all(13),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2.5, color: Colors.white))
+                                : Icon(MoodData.moods[moodIndex!].icon,
+                                    color: Colors.white, size: 26)),
+                          const SizedBox(width: 14),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                savingMood ? 'Guardando...' : 'Me siento:',
+                                style: const TextStyle(fontSize: 11,
+                                    color: Colors.white70)),
+                              const SizedBox(height: 2),
+                              Text(MoodData.moods[moodIndex!].label,
+                                style: const TextStyle(
+                                  fontSize: 17, fontWeight: FontWeight.bold,
+                                  color: Colors.white)),
+                            ],
+                          )),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(12)),
+                            child: const Icon(Icons.send_rounded,
+                                color: Colors.white, size: 18)),
+                        ]),
                       ),
                     ),
             ),
+          ],
 
           const SizedBox(height: 24),
 
