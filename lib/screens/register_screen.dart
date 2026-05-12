@@ -1,323 +1,336 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final FirebaseAuth? auth;
+  final FirebaseFirestore? firestore;
+  const RegisterScreen({super.key, this.auth, this.firestore});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  // ── PALETA ───────────────────────────────────────────────────────────────────
+  static const Color _primary  = Color(0xFF1D35B4);
+  static const Color _bg       = Color(0xFFF4F6FB);
+  static const Color _textMain = Color(0xFF1E293B);
+  static const Color _textSub  = Color(0xFF64748B);
+  static const Color _fieldBg  = Color(0xFFF1F4FC);
+  static const Color _fieldBdr = Color(0xFFDDE3F5);
 
-  bool _isLoading = false;
+  // ── FORM ──────────────────────────────────────────────────────────────────────
+  final _formKey      = GlobalKey<FormState>();
+  final _nameCtrl     = TextEditingController();
+  final _emailCtrl    = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _licenseCtrl  = TextEditingController();
+  final _phoneCtrl    = TextEditingController();
 
-  feature/HU-03-login
+  bool    _isLoading = false;
+  bool    _obscure   = true;
+  bool    _terms     = false;
+  String  _role      = 'Paciente';
+
+  @override
+  void dispose() {
+    for (final c in [_nameCtrl, _emailCtrl, _passwordCtrl, _licenseCtrl, _phoneCtrl]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-
+    if (!_terms) { _err('Debes aceptar los Términos y Condiciones.'); return; }
     setState(() => _isLoading = true);
-
     try {
-      final authInstance = widget.auth ?? FirebaseAuth.instance;
-      final firestoreInstance = widget.firestore ?? FirebaseFirestore.instance;
+      final auth  = widget.auth      ?? FirebaseAuth.instance;
+      final db    = widget.firestore ?? FirebaseFirestore.instance;
+      final isPsi = _role == 'Psicólogo';
 
-      // 1. Crear usuario en Firebase Auth
-      UserCredential userCredential = await authInstance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+      final cred = await auth.createUserWithEmailAndPassword(
+        email: _emailCtrl.text.trim(), password: _passwordCtrl.text.trim());
+      await cred.user!.updateDisplayName(_nameCtrl.text.trim());
 
-      // 2. Guardar nombre en Authentication
-      await userCredential.user!.updateDisplayName(_nameController.text.trim());
-
-      // 3. Guardar datos adicionales en Firestore
-      await firestoreInstance.collection('users').doc(userCredential.user!.uid).set({
-        'name': _nameController.text.trim(),
-        'email': userCredential.user!.email,
-        'role': 'User',
+      await db.collection('users').doc(cred.user!.uid).set({
+        'name'     : _nameCtrl.text.trim(),
+        'email'    : cred.user!.email,
+        'role'     : _role,
+        'status'   : isPsi ? 'pendiente' : 'activo',
         'createdAt': FieldValue.serverTimestamp(),
+        if (isPsi) ...{
+          if (_licenseCtrl.text.isNotEmpty) 'license': _licenseCtrl.text.trim(),
+          if (_phoneCtrl.text.isNotEmpty)   'phone'  : _phoneCtrl.text.trim(),
+        },
       });
 
-      // CORRECCIÓN: verificar mounted antes de usar context tras awaits
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Cuenta creada con éxito! Bienvenido a CalmSpace'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // CORRECCIÓN: navegar a home explícitamente como respaldo,
-      // en caso de que authStateChanges no dispare la redirección a tiempo.
-      Navigator.pushReplacementNamed(context, '/home');
-
+      Navigator.pushReplacementNamed(context, isPsi ? '/pending' : '/home');
     } on FirebaseAuthException catch (e) {
-      String errorMsg = 'Ocurrió un error inesperado';
-
-      if (e.code == 'weak-password') {
-        errorMsg = 'La contraseña es muy débil.';
-      } else if (e.code == 'email-already-in-use') {
-        errorMsg = 'Ya existe una cuenta con este correo.';
-      } else if (e.code == 'invalid-email') {
-        errorMsg = 'El formato del correo no es válido.';
-      } else if (e.code == 'too-many-requests') {
-        errorMsg = 'Demasiados intentos. Intenta más tarde.';
-
-  // REGISTRO CON EMAIL Y PASSWORD
-  Future<void> _register() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-
-      try {
-        // Crear usuario
-        UserCredential userCredential =
-            await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-
-        // Guardar nombre en Auth
-        await userCredential.user!
-            .updateDisplayName(_nameController.text.trim());
-
-        // Guardar en Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set({
-          'name': _nameController.text.trim(),
-          'email': userCredential.user!.email,
-          'role': 'User',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Cuenta creada con éxito!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        String msg = 'Error inesperado';
-
-        if (e.code == 'weak-password') {
-          msg = 'La contraseña es muy débil';
-        } else if (e.code == 'email-already-in-use') {
-          msg = 'Este correo ya está registrado';
-        } else if (e.code == 'invalid-email') {
-          msg = 'Correo inválido';
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg), backgroundColor: Colors.red),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(e.toString())));
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      main
-      }
-
-      // CORRECCIÓN: verificar mounted antes de usar context
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-      );
-
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-
+      _err(switch (e.code) {
+        'weak-password'        => 'Contraseña muy débil (mín. 6 caracteres).',
+        'email-already-in-use' => 'Ya existe una cuenta con este correo.',
+        'invalid-email'        => 'El formato del correo no es válido.',
+        _                      => 'Ocurrió un error inesperado.',
+      });
     } finally {
-      // ✅ CORRECCIÓN: usar finally para garantizar que _isLoading se resetea siempre
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // GOOGLE SIGN-IN
-  Future<UserCredential?> signInWithGoogle() async {
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser =
-          await googleSignIn.signIn();
-
-      if (googleUser == null) return null;
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      return await FirebaseAuth.instance
-          .signInWithCredential(credential);
-    } on FirebaseAuthException catch (e) {
-      debugPrint("Error: ${e.message}");
-      return null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(m, style: const TextStyle(fontWeight: FontWeight.w500)),
+    backgroundColor: Colors.redAccent,
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
 
   @override
   Widget build(BuildContext context) {
+    final isPsi = _role == 'Psicólogo';
+
     return Scaffold(
-      backgroundColor: Colors.blue.shade50,
-      appBar: AppBar(
-        title: const Text('Crear Cuenta'),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Center(
           child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                const Text(
-                  'Regístrate en CalmSpace',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 40),
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Image.network(
+                    'https://i.postimg.cc/sgPdPjqB/LOGO-AZUL.png',
+                    height: 60, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.spa_rounded, color: _primary, size: 52)),
+                  const SizedBox(height: 12),
+                  const Text('Crear cuenta', style: TextStyle(
+                    fontSize: 28, fontWeight: FontWeight.w800,
+                    color: _primary, letterSpacing: -0.5)),
+                  const SizedBox(height: 4),
+                  const Text('Tu espacio de bienestar emocional',
+                    style: TextStyle(fontSize: 13, color: _textSub)),
+                  const SizedBox(height: 28),
 
- feature/HU-03-login
-                // Campo Nombre
-
-                // NOMBRE
- main
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Ingresa tu nombre' : null,
-                ),
-
- feature/HU-03-login
-                // Campo Email
-
-                const SizedBox(height: 20),
-
-                // EMAIL
-
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo',
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Ingresa tu correo' : null,
-                ),
-
-            feature/HU-03-login
-                // Campo Contraseña
-
-                const SizedBox(height: 20),
-
-                // PASSWORD
-             main
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  validator: (value) =>
-                      value!.length < 6 ? 'Mínimo 6 caracteres' : null,
-                ),
-
-         feature/HU-03-login
-                // Botón Registrarse
-
-                const SizedBox(height: 30),
-
-                // BOTÓN REGISTRO
-           main
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _register,
-        feature/HU-03-login
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      shape: const StadiumBorder(),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [BoxShadow(
+                        color: const Color(0xFF0F172A).withOpacity(0.06),
+                        blurRadius: 24, offset: const Offset(0, 8))],
                     ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Registrarse',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(16)),
+                          child: Row(children: [
+                            _rolePill('Paciente', Icons.self_improvement_rounded),
+                            _rolePill('Psicólogo', Icons.psychology_rounded),
+                          ]),
+                        ),
+                        const SizedBox(height: 24),
+
+                        _field(ctrl: _nameCtrl, hint: 'Nombre completo',
+                          icon: Icons.person_outline_rounded,
+                          validator: (v) => v!.trim().isEmpty ? 'Requerido' : null),
+                        _field(ctrl: _emailCtrl, hint: 'Correo electrónico',
+                          icon: Icons.alternate_email_rounded,
+                          type: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v!.trim().isEmpty) return 'Requerido';
+                            if (!v.contains('@')) return 'Correo inválido';
+                            return null;
+                          }),
+                        _field(ctrl: _passwordCtrl, hint: 'Contraseña',
+                          icon: Icons.lock_outline_rounded, obscure: _obscure,
+                          action: IconButton(
+                            icon: Icon(
+                              _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: _textSub, size: 18),
+                            onPressed: () => setState(() => _obscure = !_obscure)),
+                          validator: (v) => v!.length < 6 ? 'Mínimo 6 caracteres' : null),
+
+                        if (isPsi) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFC7D2FE))),
+                            child: const Row(children: [
+                              Icon(Icons.verified_user_outlined, color: _primary, size: 18),
+                              SizedBox(width: 10),
+                              Expanded(child: Text(
+                                'Necesitamos verificar tu identidad como profesional.',
+                                style: TextStyle(fontSize: 12, color: _primary, height: 1.4))),
+                            ]),
                           ),
+                          const SizedBox(height: 16),
+                          _field(ctrl: _licenseCtrl, hint: 'Número de tarjeta profesional *',
+                            icon: Icons.badge_outlined,
+                            type: TextInputType.number,
+                            validator: (v) => v!.trim().isEmpty ? 'Requerido para verificación' : null),
+                          _field(ctrl: _phoneCtrl, hint: 'Teléfono de contacto *',
+                            icon: Icons.phone_iphone_rounded,
+                            type: TextInputType.phone,
+                            validator: (v) => v!.trim().isEmpty ? 'Requerido para verificación' : null),
+                        ],
+
+                        const SizedBox(height: 8),
+
+                        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                          SizedBox(width: 20, height: 20,
+                            child: Checkbox(
+                              value: _terms,
+                              onChanged: (v) => setState(() => _terms = v ?? false),
+                              activeColor: _primary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.5))),
+                          const SizedBox(width: 10),
+                          const Expanded(child: Text.rich(TextSpan(
+                            text: 'Acepto los ', style: TextStyle(fontSize: 12, color: _textSub),
+                            children: [
+                              TextSpan(text: 'Términos', style: TextStyle(color: _primary, fontWeight: FontWeight.w600)),
+                              TextSpan(text: ' y '),
+                              TextSpan(text: 'Privacidad', style: TextStyle(color: _primary, fontWeight: FontWeight.w600)),
+                            ],
+                          ))),
+                        ]),
+
+                        const SizedBox(height: 20),
+
+                        SizedBox(
+                          width: double.infinity, height: 50,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _register,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primary, elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                            child: _isLoading
+                              ? const SizedBox(width: 20, height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                              : const Text('Regístrate', style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
 
-                // NUEVO: enlace a login
-                TextButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-                  child: const Text('¿Ya tienes cuenta? Inicia sesión'),
+                  const SizedBox(height: 20),
 
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Registrarse'),
+                  GestureDetector(
+                    onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+                    child: const Text.rich(TextSpan(
+                      text: '¿Ya tienes cuenta? ', style: TextStyle(fontSize: 14, color: _textSub),
+                      children: [TextSpan(text: 'Inicia sesión',
+                        style: TextStyle(color: _primary, fontWeight: FontWeight.w700))],
+                    )),
                   ),
-                ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // GOOGLE SIGN-IN
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    await signInWithGoogle();
-                  },
-                  icon: Image.network(
-                    'https://cdn-icons-png.flaticon.com/512/281/281764.png',
-                    height: 24,
+                  Row(children: [
+                    Expanded(child: Divider(color: _textSub.withOpacity(0.2))),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('o continúa con', style: TextStyle(fontSize: 12, color: _textSub))),
+                    Expanded(child: Divider(color: _textSub.withOpacity(0.2))),
+                  ]),
+                  const SizedBox(height: 14),
+
+                  GestureDetector(
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Próximamente'))),
+                    child: Container(
+                      width: 56, height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _fieldBdr),
+                        boxShadow: [BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8, offset: const Offset(0, 3))]),
+                      child: Center(
+                        child: SvgPicture.network(
+                          'https://www.vectorlogo.zone/logos/google/google-icon.svg',
+                          width: 22, height: 22)),
+                    ),
                   ),
-                  label: const Text("Continuar con Google"),
-          main
-                ),
-              ],
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _rolePill(String label, IconData icon) {
+    final isSel = _role == label;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _role = label),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+            color: isSel ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSel ? [BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 6, offset: const Offset(0, 2))] : []),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 16, color: isSel ? _primary : _textSub),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+              color: isSel ? _primary : _textSub)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _deco({required String hint, required IconData icon}) =>
+    InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFFADB5C9), fontSize: 14),
+      prefixIcon: Icon(icon, color: _primary.withOpacity(0.5), size: 18),
+      filled: true, fillColor: _fieldBg,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _fieldBdr)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _fieldBdr)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primary, width: 1.8)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      isDense: true,
+    );
+
+  Widget _field({
+    required TextEditingController ctrl, required String hint, required IconData icon,
+    bool obscure = false, TextInputType? type,
+    Widget? action, String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: ctrl, obscureText: obscure, keyboardType: type,
+        validator: validator,
+        style: const TextStyle(fontSize: 14, color: _textMain, fontWeight: FontWeight.w500),
+        decoration: _deco(hint: hint, icon: icon).copyWith(suffixIcon: action),
       ),
     );
   }
