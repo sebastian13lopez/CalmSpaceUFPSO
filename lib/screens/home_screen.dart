@@ -35,20 +35,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUser() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) { setState(() => _loading = false); return; }
     setState(() { _nombre = user.displayName ?? ''; _email = user.email ?? ''; });
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users').doc(user.uid).get();
-      if (doc.exists && mounted) {
-        final d = doc.data()!;
+      if (mounted) {
+        final d = doc.exists ? doc.data()! : <String, dynamic>{};
         setState(() {
-          _role   = d['role']  ?? 'Paciente';
-          _nombre = d['name']  ?? _nombre;
-          _email  = d['email'] ?? _email;
+          _role   = d['role']     ?? 'Paciente';
+          // Firestore puede usar 'fullName' (HU-04) o 'name' (registro antiguo)
+          _nombre = d['fullName'] ?? d['name'] ?? user.displayName ?? _email;
+          _email  = d['email']   ?? _email;
           _loading = false;
         });
-      } else { if (mounted) setState(() => _loading = false); }
+      }
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
